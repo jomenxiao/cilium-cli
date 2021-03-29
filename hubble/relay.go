@@ -367,7 +367,7 @@ func (k *K8sHubble) createRelayServerCertificate(ctx context.Context) error {
 		defaults.RelayServerSecretKeyName:  key,
 	}
 
-	_, err = k.client.CreateSecret(ctx, k.params.Namespace, k8s.NewSecret(defaults.RelayServerSecretName, k.params.Namespace, data), metav1.CreateOptions{})
+	_, err = k.client.CreateSecret(ctx, k.params.Namespace, k8s.NewTLSSecret(defaults.RelayServerSecretName, k.params.Namespace, data), metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create secret %s/%s: %w", k.params.Namespace, defaults.RelayServerSecretName, err)
 	}
@@ -403,7 +403,7 @@ func (k *K8sHubble) createRelayClientCertificate(ctx context.Context) error {
 		defaults.RelayClientSecretKeyName:  key,
 	}
 
-	_, err = k.client.CreateSecret(ctx, k.params.Namespace, k8s.NewSecret(defaults.RelayClientSecretName, k.params.Namespace, data), metav1.CreateOptions{})
+	_, err = k.client.CreateSecret(ctx, k.params.Namespace, k8s.NewTLSSecret(defaults.RelayClientSecretName, k.params.Namespace, data), metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create secret %s/%s: %w", k.params.Namespace, defaults.RelayClientSecretName, err)
 	}
