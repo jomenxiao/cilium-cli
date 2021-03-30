@@ -37,25 +37,19 @@ const (
 	OperatorImageAWS           = "quay.io/cilium/operator-aws"
 	OperatorImageAzure         = "quay.io/cilium/operator-azure"
 
-	HubbleSocketPath           = "/var/run/cilium/hubble.sock"
-	HubbleServerSecretName     = "hubble-server-certs"
-	HubbleServerSecretCertName = "tls.crt"
-	HubbleServerSecretKeyName  = "tls.key"
+	HubbleSocketPath       = "/var/run/cilium/hubble.sock"
+	HubbleServerSecretName = "hubble-server-certs"
 
-	RelayDeploymentName       = "hubble-relay"
-	RelayClusterRoleName      = "hubble-relay"
-	RelayServiceAccountName   = "hubble-relay"
-	RelayServiceName          = "hubble-relay"
-	RelayConfigMapName        = "hubble-relay-config"
-	RelayImage                = "quay.io/cilium/hubble-relay"
-	RelayListenHost           = ""
-	RelayPort                 = 4245
-	RelayServerSecretName     = "hubble-relay-server-certs"
-	RelayServerSecretCertName = "tls.crt"
-	RelayServerSecretKeyName  = "tls.key"
-	RelayClientSecretName     = "hubble-relay-client-certs"
-	RelayClientSecretCertName = "tls.crt"
-	RelayClientSecretKeyName  = "tls.key"
+	RelayDeploymentName     = "hubble-relay"
+	RelayClusterRoleName    = "hubble-relay"
+	RelayServiceAccountName = "hubble-relay"
+	RelayServiceName        = "hubble-relay"
+	RelayConfigMapName      = "hubble-relay-config"
+	RelayImage              = "quay.io/cilium/hubble-relay"
+	RelayListenHost         = ""
+	RelayPort               = 4245
+	RelayServerSecretName   = "hubble-relay-server-certs"
+	RelayClientSecretName   = "hubble-relay-client-certs"
 
 	HubbleUIServiceName        = "hubble-ui"
 	HubbleUIClusterRoleName    = "hubble-ui"
@@ -63,24 +57,16 @@ const (
 	HubbleUIConfigMapName      = "hubble-ui-envoy"
 	HubbleUIDeploymentName     = "hubble-ui"
 
-	ClusterMeshDeploymentName                 = "clustermesh-apiserver"
-	ClusterMeshServiceAccountName             = "clustermesh-apiserver"
-	ClusterMeshClusterRoleName                = "clustermesh-apiserver"
-	ClusterMeshApiserverImage                 = "quay.io/cilium/clustermesh-apiserver:" + Version
-	ClusterMeshServiceName                    = "clustermesh-apiserver"
-	ClusterMeshSecretName                     = "cilium-clustermesh" // Secret which contains the clustermesh configuration
-	ClusterMeshServerSecretName               = "clustermesh-apiserver-server-certs"
-	ClusterMeshServerSecretCertName           = "tls.crt"
-	ClusterMeshServerSecretKeyName            = "tls.key"
-	ClusterMeshAdminSecretName                = "clustermesh-apiserver-admin-certs"
-	ClusterMeshAdminSecretCertName            = "tls.crt"
-	ClusterMeshAdminSecretKeyName             = "tls.key"
-	ClusterMeshClientSecretName               = "clustermesh-apiserver-client-certs"
-	ClusterMeshClientSecretCertName           = "tls.crt"
-	ClusterMeshClientSecretKeyName            = "tls.key"
-	ClusterMeshExternalWorkloadSecretName     = "clustermesh-apiserver-external-workload-certs"
-	ClusterMeshExternalWorkloadSecretCertName = "tls.crt"
-	ClusterMeshExternalWorkloadSecretKeyName  = "tls.key"
+	ClusterMeshDeploymentName             = "clustermesh-apiserver"
+	ClusterMeshServiceAccountName         = "clustermesh-apiserver"
+	ClusterMeshClusterRoleName            = "clustermesh-apiserver"
+	ClusterMeshApiserverImage             = "quay.io/cilium/clustermesh-apiserver:" + Version
+	ClusterMeshServiceName                = "clustermesh-apiserver"
+	ClusterMeshSecretName                 = "cilium-clustermesh" // Secret which contains the clustermesh configuration
+	ClusterMeshServerSecretName           = "clustermesh-apiserver-server-certs"
+	ClusterMeshAdminSecretName            = "clustermesh-apiserver-admin-certs"
+	ClusterMeshClientSecretName           = "clustermesh-apiserver-client-certs"
+	ClusterMeshExternalWorkloadSecretName = "clustermesh-apiserver-external-workload-certs"
 
 	ConnectivityCheckNamespace = "cilium-test"
 
