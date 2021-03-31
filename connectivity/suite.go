@@ -29,5 +29,6 @@ func Run(ctx context.Context, k *check.K8sConnectivityCheck) error {
 		&tests.PodToLocalNodePort{},
 		&tests.PodToWorld{},
 		&tests.PodToHost{},
+		&tests.PodToExternalWorkload{},
 	)
 }

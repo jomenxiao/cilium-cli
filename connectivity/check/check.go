@@ -164,6 +164,7 @@ type k8sConnectivityImplementation interface {
 	GetNamespace(ctx context.Context, namespace string, options metav1.GetOptions) (*corev1.Namespace, error)
 	ListPods(ctx context.Context, namespace string, options metav1.ListOptions) (*corev1.PodList, error)
 	ListServices(ctx context.Context, namespace string, options metav1.ListOptions) (*corev1.ServiceList, error)
+	ListCiliumExternalWorkloads(ctx context.Context, options metav1.ListOptions) (*ciliumv2.CiliumExternalWorkloadList, error)
 	GetCiliumEndpoint(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*ciliumv2.CiliumEndpoint, error)
 	ExecInPod(ctx context.Context, namespace, pod, container string, command []string) (bytes.Buffer, error)
 	ExecInPodWithStderr(ctx context.Context, namespace, pod, container string, command []string) (bytes.Buffer, bytes.Buffer, error)
@@ -192,7 +193,7 @@ func (p PodContext) Address() string {
 
 // ServiceContext is a service acting as a peer in a connectivity test
 type ServiceContext struct {
-	// Service  is the Kubernetes service resource
+	// Service is the Kubernetes service resource
 	Service *corev1.Service
 }
 
@@ -223,9 +224,26 @@ func (n NetworkEndpointContext) Name() string {
 	return n.Peer
 }
 
-// Address it the network address of the network endpoint
+// Address returns the network address of the network endpoint.
 func (n NetworkEndpointContext) Address() string {
 	return n.Peer
+}
+
+// ExternalWorkloadContext is an external workload acting as a peer in a
+// connectivity test.
+type ExternalWorkloadContext struct {
+	// ExternalWorkload is the Kubernetes Cilium external workload resource
+	ExternalWorkload *ciliumv2.CiliumExternalWorkload
+}
+
+// Name returns the name of the external workload.
+func (e ExternalWorkloadContext) Name() string {
+	return e.ExternalWorkload.Name
+}
+
+// Address returns the network address of the external workload.
+func (e ExternalWorkloadContext) Address() string {
+	return e.ExternalWorkload.Status.IP
 }
 
 // TestContext is the context a test uses to interact with the test framework
@@ -238,6 +256,9 @@ type TestContext interface {
 
 	// EchoServices returns a map of all deployed echo services
 	EchoServices() map[string]ServiceContext
+
+	// ExternalWorkloads returns a map of all deployed external workloads
+	ExternalWorkloads() map[string]ExternalWorkloadContext
 
 	// Log is used to log a status update
 	Log(format string, a ...interface{})
@@ -508,15 +529,16 @@ func (t TestResults) Failed() (failed int) {
 }
 
 type K8sConnectivityCheck struct {
-	client          k8sConnectivityImplementation
-	ciliumNamespace string
-	hubbleClient    observer.ObserverClient
-	params          Parameters
-	clients         *deploymentClients
-	echoPods        map[string]PodContext
-	clientPods      map[string]PodContext
-	echoServices    map[string]ServiceContext
-	results         TestResults
+	client            k8sConnectivityImplementation
+	ciliumNamespace   string
+	hubbleClient      observer.ObserverClient
+	params            Parameters
+	clients           *deploymentClients
+	echoPods          map[string]PodContext
+	clientPods        map[string]PodContext
+	echoServices      map[string]ServiceContext
+	externalWorkloads map[string]ExternalWorkloadContext
+	results           TestResults
 }
 
 func NewK8sConnectivityCheck(client k8sConnectivityImplementation, p Parameters) (*K8sConnectivityCheck, error) {
@@ -1103,6 +1125,19 @@ func (k *K8sConnectivityCheck) validateDeployment(ctx context.Context) error {
 		k.waitForService(ctx, k.client, serviceName)
 	}
 
+	k.externalWorkloads = map[string]ExternalWorkloadContext{}
+	for _, client := range k.clients.clients() {
+		externalWorkloads, err := client.ListCiliumExternalWorkloads(ctx, metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to list external workloads: %s", err)
+		}
+		for _, externalWorkload := range externalWorkloads.Items {
+			k.externalWorkloads[externalWorkload.Name] = ExternalWorkloadContext{
+				ExternalWorkload: externalWorkload.DeepCopy(),
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1135,6 +1170,10 @@ func (k *K8sConnectivityCheck) ClientPods() map[string]PodContext {
 
 func (k *K8sConnectivityCheck) EchoServices() map[string]ServiceContext {
 	return k.echoServices
+}
+
+func (k *K8sConnectivityCheck) ExternalWorkloads() map[string]ExternalWorkloadContext {
+	return k.externalWorkloads
 }
 
 func (k *K8sConnectivityCheck) FlowSettleSleepDuration() time.Duration {
