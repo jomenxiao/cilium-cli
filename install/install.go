@@ -947,10 +947,11 @@ type k8sInstallerImplementation interface {
 }
 
 type K8sInstaller struct {
-	client      k8sInstallerImplementation
-	params      InstallParameters
-	flavor      k8s.Flavor
-	certManager *certs.CertManager
+	client        k8sInstallerImplementation
+	params        InstallParameters
+	flavor        k8s.Flavor
+	certManager   *certs.CertManager
+	rollbackSteps []rollbackStep
 }
 
 const (
@@ -995,6 +996,8 @@ type InstallParameters struct {
 	ConfigOverwrites     []string
 	configOverwrites     map[string]string
 }
+
+type rollbackStep func(context.Context)
 
 func (p *InstallParameters) validate() error {
 	p.configOverwrites = map[string]string{}
@@ -1263,7 +1266,7 @@ func (k *K8sInstaller) generateConfigMap() (*corev1.ConfigMap, error) {
 	}
 
 	for key, value := range k.params.configOverwrites {
-		k.Log("ℹ️  Manual overwrite in ConfigMap: %s=%s", key, value)
+		k.Log("ℹ️ Manual overwrite in ConfigMap: %s=%s", key, value)
 		m.Data[key] = value
 	}
 
@@ -1320,6 +1323,11 @@ func (k *K8sInstaller) deployResourceQuotas(ctx context.Context) error {
 	if _, err := k.client.CreateResourceQuota(ctx, k.params.Namespace, ciliumResourceQuota, metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteResourceQuota(ctx, k.params.Namespace, defaults.AgentResourceQuota, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ResourceQuota: %w", defaults.AgentResourceQuota, err)
+		}
+	})
 
 	operatorResourceQuota := &corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1345,6 +1353,11 @@ func (k *K8sInstaller) deployResourceQuotas(ctx context.Context) error {
 	if _, err := k.client.CreateResourceQuota(ctx, k.params.Namespace, operatorResourceQuota, metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteResourceQuota(ctx, k.params.Namespace, defaults.OperatorResourceQuota, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ResourceQuota: %w", defaults.OperatorResourceQuota, err)
+		}
+	})
 
 	return nil
 }
@@ -1448,27 +1461,57 @@ func (k *K8sInstaller) Install(ctx context.Context) error {
 	if _, err := k.client.CreateServiceAccount(ctx, k.params.Namespace, k8s.NewServiceAccount(defaults.AgentServiceAccountName), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteServiceAccount(ctx, k.params.Namespace, defaults.AgentServiceAccountName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ServiceAccount: %w", defaults.AgentServiceAccountName, err)
+		}
+	})
 
 	if _, err := k.client.CreateServiceAccount(ctx, k.params.Namespace, k8s.NewServiceAccount(defaults.OperatorServiceAccountName), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteServiceAccount(ctx, k.params.Namespace, defaults.OperatorServiceAccountName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ServiceAccount: %w", defaults.OperatorServiceAccountName, err)
+		}
+	})
 
 	k.Log("🚀 Creating Cluster roles...")
 	if _, err := k.client.CreateClusterRole(ctx, ciliumClusterRole, metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteClusterRole(ctx, defaults.AgentClusterRoleName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ClusterRole: %w", defaults.AgentClusterRoleName, err)
+		}
+	})
 
 	if _, err := k.client.CreateClusterRoleBinding(ctx, k8s.NewClusterRoleBinding(defaults.AgentClusterRoleName, k.params.Namespace, defaults.AgentServiceAccountName), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteClusterRoleBinding(ctx, defaults.AgentClusterRoleName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ClusterRoleBinding: %w", defaults.AgentClusterRoleName, err)
+		}
+	})
 
 	if _, err := k.client.CreateClusterRole(ctx, operatorClusterRole, metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteClusterRole(ctx, defaults.OperatorClusterRoleName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ClusterRole: %w", defaults.OperatorClusterRoleName, err)
+		}
+	})
 
 	if _, err := k.client.CreateClusterRoleBinding(ctx, k8s.NewClusterRoleBinding(defaults.OperatorClusterRoleName, k.params.Namespace, defaults.OperatorServiceAccountName), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteClusterRoleBinding(ctx, defaults.OperatorClusterRoleName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ClusterRoleBinding: %w", defaults.OperatorClusterRoleName, err)
+		}
+	})
 
 	if k.params.Encryption {
 		if err := k.createEncryptionSecret(ctx); err != nil {
@@ -1485,6 +1528,11 @@ func (k *K8sInstaller) Install(ctx context.Context) error {
 	if _, err := k.client.CreateConfigMap(ctx, k.params.Namespace, configMap, metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteConfigMap(ctx, k.params.Namespace, defaults.ConfigMapName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s ConfigMap: %w", defaults.ConfigMapName, err)
+		}
+	})
 
 	switch k.flavor.Kind {
 	case k8s.KindGKE:
@@ -1492,17 +1540,32 @@ func (k *K8sInstaller) Install(ctx context.Context) error {
 		if _, err := k.client.CreateDaemonSet(ctx, k.params.Namespace, k.generateGKEInitDaemonSet(), metav1.CreateOptions{}); err != nil {
 			return err
 		}
+		k.pushRollbackStep(func(ctx context.Context) {
+			if err := k.client.DeleteDaemonSet(ctx, k.params.Namespace, gkeInitName, metav1.DeleteOptions{}); err != nil {
+				k.Log("Cannot delete %s DaemonSet: %w", gkeInitName, err)
+			}
+		})
 	}
 
 	k.Log("🚀 Creating Agent DaemonSet...")
 	if _, err := k.client.CreateDaemonSet(ctx, k.params.Namespace, k.generateAgentDaemonSet(), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteDaemonSet(ctx, k.params.Namespace, defaults.AgentDaemonSetName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s DaemonSet: %w", defaults.AgentDaemonSetName, err)
+		}
+	})
 
 	k.Log("🚀 Creating Operator Deployment...")
 	if _, err := k.client.CreateDeployment(ctx, k.params.Namespace, k.generateOperatorDeployment(), metav1.CreateOptions{}); err != nil {
 		return err
 	}
+	k.pushRollbackStep(func(ctx context.Context) {
+		if err := k.client.DeleteDaemonSet(ctx, k.params.Namespace, defaults.OperatorDeploymentName, metav1.DeleteOptions{}); err != nil {
+			k.Log("Cannot delete %s Deployment: %w", defaults.OperatorDeploymentName, err)
+		}
+	})
 
 	if k.params.Wait {
 		k.Log("⌛ Waiting for Cilium to be installed...")
@@ -1532,4 +1595,16 @@ func (k *K8sInstaller) Install(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (k *K8sInstaller) pushRollbackStep(step rollbackStep) {
+	k.rollbackSteps = append(k.rollbackSteps, step)
+}
+
+func (k *K8sInstaller) RollbackInstallation(ctx context.Context) {
+	k.Log("↩️ Rolling back installation...")
+
+	for _, r := range k.rollbackSteps {
+		r(ctx)
+	}
 }
